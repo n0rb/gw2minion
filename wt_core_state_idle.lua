@@ -28,7 +28,8 @@ function c_deposit:evaluate()
 	end
 	return false
 end
-e_deposit.throttle = 500
+e_deposit.throttle = math.random(1000,2500)
+e_deposit.delay = math.random(500,1500)
 function e_deposit:execute()
 	wt_debug("Deposing Collectables..")
 	wt_global_information.InventoryFull = 1
@@ -224,19 +225,33 @@ function c_check_target:evaluate()
 		Target = CharacterList:Get(TargetID)
 	end
 	if (Target == nil or not Target.alive) then
-		c_check_target.TargetList = (CharacterList("shortestpath,onmesh,noCritter,attackable,alive,maxdistance=2000,maxlevel="..(Player.level + wt_global_information.AttackEnemiesLevelMaxRangeAbovePlayerLevel)))
-		return TableSize(c_check_target.TargetList) > 0
+		-- hier ist das problem
+		c_check_target.TargetList = (CharacterList("shortestpath,hostile,onmesh,noCritter,attackable,alive,maxdistance=2000,maxlevel="..(Player.level + wt_global_information.AttackEnemiesLevelMaxRangeAbovePlayerLevel)))
+		
+		if ( TableSize(c_check_target.TargetList) > 0 ) then
+			nextTarget , E  = next(c_check_target.TargetList)
+					if (nextTarget ~=nil) then
+						if (E.attitude ~= 2) then 
+							return true
+						end
+					end
+		end
 	end
 	return false
 end
 
 function e_targetsearch:execute()
+	--d("it's true")
+	d(TableSize(c_check_target.TargetList))
 	nextTarget , E  = next(c_check_target.TargetList)
 	if (nextTarget ~=nil) then
-		wt_debug("Idle: Begin Combat, Found target "..nextTarget)
-		Player:StopMoving()
-		wt_core_state_combat.setTarget(nextTarget)
-		wt_core_controller.requestStateChange(wt_core_state_combat)
+		if (E.attitude ~= 2) then
+			wt_debug(E.attitude)
+			wt_debug("Idle: Begin Combat, Found target "..nextTarget)
+			Player:StopMoving()
+			wt_core_state_combat.setTarget(nextTarget)
+			wt_core_controller.requestStateChange(wt_core_state_combat)
+		end
 	end
 end
 
@@ -301,7 +316,24 @@ function UpdateNextMarker()
 	end
 end
 
+-- Event Check Cause & Effect
+local c_eventcheck = inheritsFrom(wt_cause)
+local e_eventcheck = inheritsFrom(wt_effect)
 
+function c_eventcheck:evaluate()
+	if(wt_global_information.nextEvent == 0 or wt_global_information.nextEvent == nil) then
+		wt_debug("eventsearch")
+		return true
+	end
+	--x = wt_global_information.eventSearchPause-(wt_global_information.Now-wt_global_information.lastEventSearch)
+	--wt_debug("eventsearch paused for " .. x)
+	return false
+end
+
+function e_eventcheck:execute()
+	wt_debug("changing state to event")
+	wt_core_controller.requestStateChange(wt_core_state_event)
+end
 
 function wt_core_state_idle:initialize()
 
@@ -337,6 +369,9 @@ function wt_core_state_idle:initialize()
 
 	local ke_targetsearch = wt_kelement:create("Targetsearch",c_check_target,e_targetsearch,30)
 	wt_core_state_idle:add(ke_targetsearch)
+	
+	--local ke_event = wt_kelement:create("Event",c_eventcheck,e_eventcheck, 25)
+	--wt_core_state_idle:add(ke_event)
 
 	local ke_marker= wt_kelement:create("Marker",c_marker,e_marker,20)
 	wt_core_state_idle:add(ke_marker)
